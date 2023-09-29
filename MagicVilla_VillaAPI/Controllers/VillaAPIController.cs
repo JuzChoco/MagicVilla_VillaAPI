@@ -1,4 +1,5 @@
 ﻿using MagicVilla_VillaAPI.Data;
+using MagicVilla_VillaAPI.Logging;
 using MagicVilla_VillaAPI.Models;
 using MagicVilla_VillaAPI.Models.Dto;
 using Microsoft.AspNetCore.JsonPatch;
@@ -11,11 +12,21 @@ namespace MagicVilla_VillaAPI.Controllers
     //[ApiController ]
     public class VillaAPIController : ControllerBase
     {
+        //private readonly ILogging _logger; //For custom logging
+        private readonly ApplicationDbContext _db;
+        public VillaAPIController(ApplicationDbContext db) //(ILogging logger)
+        {
+            _db = db;
+            //_logger = logger; //For custom logging   
+
+        }
+
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<IEnumerable<VillaDTO>> GetVillas()
         {
-               return Ok(VillaStore.GetAllVillaDTOs);
+            //_logger.Log("Getting all villas!", ""); //For custom logging
+               return Ok(_db.Villas);
 
         }
 
@@ -28,13 +39,15 @@ namespace MagicVilla_VillaAPI.Controllers
         {
             if (id == 0)
             {
+                //_logger.Log("Error getting villa with Id: " + id, "error"); //For custom logging
                 return BadRequest();
             }
 
-            var villa = VillaStore.GetAllVillaDTOs.FirstOrDefault(u => u.Id == id);
+            var villa = _db.Villas.FirstOrDefault(u => u.Id == id);
             
             if (villa == null)
             {
+                //_logger.Log("Error getting villa with Id: " + id, "error"); //For custom logging
                 return NotFound();
             }
 
@@ -54,7 +67,7 @@ namespace MagicVilla_VillaAPI.Controllers
             //    return BadRequest(ModelState);
             //}
 
-            if (VillaStore.GetAllVillaDTOs.FirstOrDefault(u=>u.Name == villa.Name) != null)
+            if (_db.Villas.FirstOrDefault(u=>u.Name.ToLower() == villa.Name.ToLower()) != null)
             {
                 ModelState.AddModelError("Custom Error:", "The villa name already exists!");
                 return BadRequest(ModelState);
@@ -70,8 +83,21 @@ namespace MagicVilla_VillaAPI.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }
 
-            villa.Id = VillaStore.GetAllVillaDTOs.OrderByDescending(u  => u.Id).FirstOrDefault().Id + 1;
-            VillaStore.GetAllVillaDTOs.Add(villa);
+            Villa model = new()
+            {
+                Amenity = villa.Amenity,
+                Details = villa.Details,
+                Id = villa.Id,
+                ImageUrl = villa.ImageUrl,
+                Name = villa.Name,
+                Occupancy = villa.Occupancy,
+                Rate = villa.Rate,
+                Sqft = villa.Sqft
+
+            };
+
+            _db.Villas.Add(model);
+            _db.SaveChanges();
 
             return CreatedAtRoute("GetVilla", new {id = villa.Id}, villa);
         }
@@ -87,13 +113,15 @@ namespace MagicVilla_VillaAPI.Controllers
                 return BadRequest();
             }
 
-            var villa = VillaStore.GetAllVillaDTOs.FirstOrDefault(u => u.Id == id);
+            var villa = _db.Villas.FirstOrDefault(u => u.Id == id);
             if (villa == null)
             {
                 return NotFound();
             }
 
-            VillaStore.GetAllVillaDTOs.Remove(villa);
+            _db.Villas.Remove(villa);
+            _db.SaveChanges();
+
             return NoContent();
         }
 
@@ -107,10 +135,28 @@ namespace MagicVilla_VillaAPI.Controllers
                 return BadRequest();
             }
 
-            var actualVilla = VillaStore.GetAllVillaDTOs.FirstOrDefault(u => u.Id == id);
-            actualVilla.Name = villa.Name;
-            actualVilla.Sqft = villa.Sqft;
-            actualVilla.Occupancy = villa.Occupancy;
+            //When VillaDataStore was used
+            //var actualVilla = VillaStore.GetAllVillaDTOs.FirstOrDefault(u => u.Id == id);
+            //actualVilla.Name = villa.Name;
+            //actualVilla.Sqft = villa.Sqft;
+            //actualVilla.Occupancy = villa.Occupancy;
+
+            //*** When using DbContext ***//
+            Villa model = new()
+            {
+                Amenity = villa.Amenity,
+                Details = villa.Details,
+                Id = villa.Id,
+                ImageUrl = villa.ImageUrl,
+                Name = villa.Name,
+                Occupancy = villa.Occupancy,
+                Rate = villa.Rate,
+                Sqft = villa.Sqft
+
+            };
+            
+            _db.Villas.Update(model);
+            _db.SaveChanges();
 
             return NoContent();
         }
@@ -126,14 +172,43 @@ namespace MagicVilla_VillaAPI.Controllers
                 return BadRequest();
             }
 
-            var villa = VillaStore.GetAllVillaDTOs.FirstOrDefault(u => u.Id == id);
+            var villa = _db.Villas.FirstOrDefault(u => u.Id == id);
+
+            VillaDTO villaDTO = new()
+            {
+                Amenity = villa.Amenity,
+                Details = villa.Details,
+                Id = villa.Id,
+                ImageUrl = villa.ImageUrl,
+                Name = villa.Name,
+                Occupancy = villa.Occupancy,
+                Rate = villa.Rate,
+                Sqft = villa.Sqft
+
+            };
 
             if (villa == null)
             {
                 return BadRequest();
             }
 
-            patch.ApplyTo(villa, ModelState);
+            patch.ApplyTo(villaDTO, ModelState);
+
+            Villa model = new()
+            {
+                Amenity = villaDTO.Amenity,
+                Details = villaDTO.Details,
+                Id = villaDTO.Id,
+                ImageUrl = villaDTO.ImageUrl,
+                Name = villaDTO.Name,
+                Occupancy = villaDTO.Occupancy,
+                Rate = villaDTO.Rate,
+                Sqft = villaDTO.Sqft
+
+            };
+
+            _db.Villas.Update(model);
+            _db.SaveChanges();
 
             if (!ModelState.IsValid) {
                 ModelState.AddModelError("Custom Error", "An error has occured.");
